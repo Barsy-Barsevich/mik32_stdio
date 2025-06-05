@@ -1,0 +1,3 @@
+[submodule "mik32_transaction"]
+	path = mik32_transaction
+	url = https://github.com/Barsy-Barsevich/mik32_transaction
