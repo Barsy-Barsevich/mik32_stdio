@@ -1,7 +1,6 @@
-#include "sprintf.h"
+#include "printf.h"
 
-
-static int int_to_str(long long src, char *dst, int radix, bool left_filling, char fill_value, int minimal_width, bool hex_upper)
+static int int_to_str(long long src, int radix, bool left_filling, char fill_value, int minimal_width, bool hex_upper)
 {
     int fromint_cnt = 0;
     char buf[64];
@@ -20,27 +19,27 @@ static int int_to_str(long long src, char *dst, int radix, bool left_filling, ch
         if (minimal_width - fromint_cnt > 0)
         {
             for (int i=0; i<(minimal_width-fromint_cnt); ++i)
-                *dst++ = fill_value;
+                putchar(fill_value);
         }
     }
     for (int i=fromint_cnt-1; i>=0; i--)
     {
         char sym = buf[i] + '0';
         sym += sym > '9' ? hex_upper ? 0x7 : 0x27 : 0;
-        *dst++ = sym;
+        putchar(sym);
     }
     if (!left_filling)
     {
         if (minimal_width - fromint_cnt > 0)
         {
             for (int i=0; i<(minimal_width-fromint_cnt); ++i)
-                *dst++ = fill_value;
+                putchar(fill_value);
         }
     }
     return fromint_cnt < minimal_width ? minimal_width : fromint_cnt;
 }
 
-int _vsprintf(char *dst, const char *fmt, va_list arg)
+int _vprintf(const char *fmt, va_list arg)
 {
     char c;
     int symbols_counter = 0;
@@ -70,7 +69,7 @@ int _vsprintf(char *dst, const char *fmt, va_list arg)
             c = *fmt++; //< get the next symbol
             if (c == '%')
             {
-                *dst++ = c;
+                putchar(c);
                 symbols_counter += 1;
                 continue;
             }
@@ -79,7 +78,7 @@ int _vsprintf(char *dst, const char *fmt, va_list arg)
                 char *string = va_arg(arg, char*);
                 while (*string != '\0')
                 {
-                    *dst++ = *string++;
+                    putchar(*string++);
                     symbols_counter += 1;
                 }
                 continue;
@@ -124,19 +123,19 @@ int _vsprintf(char *dst, const char *fmt, va_list arg)
                     if (minimal_width - (int)sizeof(char) > 0)
                     {
                         for (int i=0; i<(minimal_width-sizeof(char)); ++i)
-                            *dst++ = fill_value;
+                            putchar(fill_value);
                         symbols_counter += minimal_width;
                     }
                     else symbols_counter += sizeof(char);
-                    *dst++ = (char)va_arg(arg, int);//va_arg(arg, char);
+                    putchar((char)va_arg(arg, int));
                 }
                 else //< left = true
                 {
-                    *dst++ = (char)va_arg(arg, int);//va_arg(arg, char);
+                    putchar((char)va_arg(arg, int));
                     if (minimal_width - (int)sizeof(char) > 0)
                     {
                         for (int i=0; i<(minimal_width-sizeof(char)); ++i)
-                            *dst++ = fill_value;
+                            putchar(fill_value);
                         symbols_counter += minimal_width;
                     }
                     else symbols_counter += sizeof(char);
@@ -146,8 +145,7 @@ int _vsprintf(char *dst, const char *fmt, va_list arg)
             if (c == 'p')
             {
                 unsigned ptr = (unsigned)va_arg(arg, void*);
-                int fromint_cnt = int_to_str(ptr, dst, 16, true, fill_value, 8, true);
-                dst += fromint_cnt;
+                int fromint_cnt = int_to_str(ptr, 16, true, fill_value, 8, true);
                 symbols_counter += fromint_cnt;
                 continue;
             }
@@ -158,7 +156,7 @@ int _vsprintf(char *dst, const char *fmt, va_list arg)
                 if (fval < 0)
                 {
                     fval = -fval;
-                    *dst++ = '-';
+                    putchar('-');
                     symbols_counter += 1;
                 }
                 int exp = 0;
@@ -175,27 +173,26 @@ int _vsprintf(char *dst, const char *fmt, va_list arg)
                         exp -= 1;
                     }
                 }
-                *dst++ = (int)fval + '0';
+                putchar((int)fval + '0');
                 fval -= (float)((int)fval);
-                *dst++ = '.';
+                putchar('.');
                 for (int i=0; i<6; ++i)
                 {
                     fval *= 10;
-                    *dst++ = (int)fval + '0';
+                    putchar((int)fval + '0');
                     fval -= (float)((int)fval);
                     symbols_counter += 1;
                 }
-                *dst++ = c; //'e' or 'E'
+                putchar(c); //'e' or 'E'
                 symbols_counter += 3;
                 if (exp < 0)
                 {
-                    *dst++ = '-';
+                    putchar('-');
                     symbols_counter += 1;
                     exp = -exp;
                 }
-                int fromint_cnt = int_to_str(exp, dst, 10, true, fill_value, minimal_width, false);
+                int fromint_cnt = int_to_str(exp, 10, true, fill_value, minimal_width, false);
                 symbols_counter += fromint_cnt;
-                dst += fromint_cnt;
                 continue;
             }
             if (c == 'f' || c == 'F')
@@ -204,20 +201,19 @@ int _vsprintf(char *dst, const char *fmt, va_list arg)
                 if (fval < 0)
                 {
                     fval = -fval;
-                    *dst++ = '-';
+                    putchar('-');
                     symbols_counter += 1;
                 }
                 int integer_value = (int)fval;
                 fval -= (float)integer_value;
-                int fromint_cnt = int_to_str(integer_value, dst, 10, true, fill_value, minimal_width, false);
-                dst += fromint_cnt;
-                *dst++ = '.';
+                int fromint_cnt = int_to_str(integer_value, 10, true, fill_value, minimal_width, false);
+                putchar('.');
                 symbols_counter += fromint_cnt + 1;
                 if (minimal_exp_width == 0) minimal_exp_width = 7;
                 for (int i=0; i<minimal_exp_width; ++i)
                 {
                     fval *= 10;
-                    *dst++ = (int)fval + '0';
+                    putchar((int)fval + '0');
                     fval -= (float)((int)fval);
                     symbols_counter += 1;
                 }
@@ -253,7 +249,7 @@ int _vsprintf(char *dst, const char *fmt, va_list arg)
                     raw = va_arg(arg, int);
                 if (raw < 0)
                 {
-                    *dst++ = '-';
+                    putchar('-');
                     symbols_counter += 1;
                     read_value = -raw;
                 }
@@ -293,25 +289,23 @@ int _vsprintf(char *dst, const char *fmt, va_list arg)
                 else
                     read_value = (unsigned)va_arg(arg, int);
             }
-            int fromint_cnt = int_to_str(read_value, dst, radix, !left, fill_value, minimal_width, hex_upper);
-            dst += fromint_cnt;
+            int fromint_cnt = int_to_str(read_value, radix, !left, fill_value, minimal_width, hex_upper);
             symbols_counter += fromint_cnt;
         }
         else
         {
-            *dst++ = c;
+            putchar(c);
             symbols_counter += 1;
         }
     }
     return symbols_counter;
 }
 
-int sprintf(char *dst, const char *fmt, ...)
+int printf(const char *fmt, ...)
 {
     va_list arg;
-
     va_start(arg, fmt);
-	int res = _vsprintf(dst, fmt, arg);
+	int res = _vprintf(fmt, arg);
 	va_end(arg);
     return res;
 }
