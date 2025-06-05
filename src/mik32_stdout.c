@@ -43,27 +43,34 @@ void __attribute__((weak)) mik32_stdout_flush(void)
     }
     else
     {
-        // usart_transaction_wait(
-        //     &mik32_stdout_trans,
-        //     1000000000 // INF_TIMEOUT // AUTO_TIMEOUT
-        // );
-        // usart_transmit_start(
-        //     &mik32_stdout_trans,
-        //     mik32_stdout_buffer,
-        //     mik32_stdout_cnt
-        // );
-        usart_transmit(
+        usart_transaction_wait(
+            &mik32_stdout_trans,
+            1000000000 // INF_TIMEOUT // AUTO_TIMEOUT
+        );
+        usart_transmit_start(
             &mik32_stdout_trans,
             mik32_stdout_buffer,
-            mik32_stdout_cnt,
-            10000
+            mik32_stdout_cnt
         );
+        // usart_transmit(
+        //     &mik32_stdout_trans,
+        //     mik32_stdout_buffer,
+        //     mik32_stdout_cnt,
+        //     10000
+        // );
     }
     mik32_stdout_cnt = 0;
 }
 
 void mik32_stdout_putc(char symbol)
 {
+    if (!mik32_stdout_blocking_transmit)
+    {
+        usart_transaction_wait(
+            &mik32_stdout_trans,
+            1000000000 // INF_TIMEOUT // AUTO_TIMEOUT
+        );
+    }
     mik32_stdout_buffer[mik32_stdout_cnt++] = symbol;
     if (symbol == PRINTF_FLUSHING_SYMBOL || mik32_stdout_cnt >= PRINTF_BUFFER_SIZE || mik32_stdout_blocking_transmit)
     {
