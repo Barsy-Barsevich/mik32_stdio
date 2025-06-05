@@ -1,3 +1,6 @@
 [submodule "mik32_transaction"]
 	path = mik32_transaction
 	url = https://github.com/Barsy-Barsevich/mik32_transaction
+[submodule "mik32_stdio"]
+	path = mik32_stdio
+	url = https://github.com/Barsy-Barsevich/mik32_stdio
