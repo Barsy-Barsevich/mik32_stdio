@@ -54,18 +54,18 @@ int _vprintf(const char *fmt, va_list arg)
 
     while (1)
     {
-        fill_value = '0';
-        minimal_width = 0;
-        minimal_exp_width = 0;
-        left = false;
         /* Get a format symbol */
         c = *fmt++;
         if (c == '\0')
         {
-            break; // end of format string
+            break; //< end of format string
         }
         if (c == '%')
         {
+            fill_value = '0';
+            minimal_width = 0;
+            minimal_exp_width = 0;
+            left = false;
             c = *fmt++; //< get the next symbol
             if (c == '%')
             {
