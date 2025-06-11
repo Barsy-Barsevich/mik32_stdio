@@ -18,5 +18,6 @@ int puts(const char *str)
     {
         putchar(*str++);
     }
+    putchar('\n');
     return '\0';
 }
