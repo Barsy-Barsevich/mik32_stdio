@@ -11,3 +11,12 @@ int putchar(int symbol)
     mik32_stdout_putc(symbol);
     return 0;
 }
+
+int puts(const char *str)
+{
+    while (*str != '\0')
+    {
+        putchar(*str++);
+    }
+    return '\0';
+}
