@@ -1,9 +1,6 @@
 #include "mik32_stdout.h"
 #include <sys/reent.h>
 
-#define PRINTF_BUFFER_SIZE          50
-#define PRINTF_FLUSHING_SYMBOL      '\n'
-
 static char mik32_stdout_buffer[PRINTF_BUFFER_SIZE];
 static uint32_t mik32_stdout_cnt;
 static usart_transaction_t mik32_stdout_trans;
@@ -99,10 +96,15 @@ int mik32_stdout_write(void *__reent, void *, const char *src, int len)
     int cnt = 0;
     if (!mik32_stdout_blocking_transmit)
     {
-        usart_transaction_wait(
+        dma_status_t res = usart_transaction_wait(
             &mik32_stdout_trans,
             DMA_NO_TIMEOUT
         );
+        if (res == DMA_STATUS_OK)
+        {
+            cnt = len;
+        }
+        else return usart_transaction_done_bytes(&mik32_stdout_trans);
     }
     for (int i=0; i<len; i++)
     {
@@ -118,16 +120,17 @@ int mik32_stdout_write(void *__reent, void *, const char *src, int len)
 
 void mik32_stdout_putc(char symbol)
 {
-    if (!mik32_stdout_blocking_transmit)
-    {
-        usart_transaction_wait(
-            &mik32_stdout_trans,
-            DMA_NO_TIMEOUT
-        );
-    }
-    mik32_stdout_buffer[mik32_stdout_cnt++] = symbol;
-    if (symbol == PRINTF_FLUSHING_SYMBOL || mik32_stdout_cnt >= PRINTF_BUFFER_SIZE || mik32_stdout_blocking_transmit)
-    {
-        mik32_stdout_flush();
-    }
+    // if (!mik32_stdout_blocking_transmit)
+    // {
+    //     usart_transaction_wait(
+    //         &mik32_stdout_trans,
+    //         DMA_NO_TIMEOUT
+    //     );
+    // }
+    // mik32_stdout_buffer[mik32_stdout_cnt++] = symbol;
+    // if (symbol == PRINTF_FLUSHING_SYMBOL || mik32_stdout_cnt >= PRINTF_BUFFER_SIZE || mik32_stdout_blocking_transmit)
+    // {
+    //     mik32_stdout_flush();
+    // }
+    mik32_stdout_write(NULL, NULL, &symbol, 1);
 }
