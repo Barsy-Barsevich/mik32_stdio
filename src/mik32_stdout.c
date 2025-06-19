@@ -38,14 +38,14 @@ void __attribute__((weak)) mik32_stdout_flush(void)
             &mik32_stdout_trans,
             mik32_stdout_buffer,
             mik32_stdout_cnt,
-            10000
+            DMA_TIMEOUT_AUTO
         );
     }
     else
     {
         usart_transaction_wait(
             &mik32_stdout_trans,
-            1000000000 // INF_TIMEOUT // AUTO_TIMEOUT
+            DMA_NO_TIMEOUT
         );
         usart_transmit_start(
             &mik32_stdout_trans,
