@@ -6,7 +6,7 @@ static uint32_t mik32_stdout_cnt;
 static usart_transaction_t mik32_stdout_trans;
 static bool mik32_stdout_blocking_transmit = true;
 
-void mik32_stdout_init(void)
+void mik32_stdout_init(UART_TypeDef *host)
 {
     stdout->_p = mik32_stdout_buffer;       //< current position in (some) buffer
     stdout->_r = 0;                         //< read space left for getc()
@@ -40,7 +40,7 @@ void mik32_stdout_init(void)
 
 
     usart_transaction_cfg_t cfg = {
-        .host = UART_0,
+        .host = host,
         .dma_channel = DMA_CH_AUTO,
         .dma_priority = 0,
         .direction = USART_TRANSACTION_TRANSMIT

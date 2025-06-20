@@ -1,7 +1,7 @@
 #include "mik32_stdio.h"
 
-void mik32_stdio_init(void)
+void mik32_stdio_init(UART_TypeDef *host)
 {
-    mik32_stdout_init();
-    mik32_stdio_init();
+    mik32_stdout_init(host);
+    mik32_stdio_init(host);
 }
