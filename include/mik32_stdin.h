@@ -15,3 +15,4 @@ void mik32_stdin_disable_blocking(void);
 uint32_t mik32_stdin_get_buffer_size(void);
 void mik32_stdin_set_buffer_size(uint32_t size);
 int mik32_stdin_read(void *__reent, void *dummy, char *dst, int len);
+char mik32_stdin_getc(void);
