@@ -13,6 +13,8 @@ static uint32_t __buffer_size = MIK32STDIN_BUFSIZE_DEFAULT;
 
 void mik32_stdin_init(UART_TypeDef *host)
 {
+    if (host != UART_0 && host != UART_1) return;
+    
     stdin->_p = (uint8_t*)__buffer;     //< current position in (some) buffer
     stdin->_r = 0;                      //< read space left for getc()
     stdin->_w = __buffer_size;          //< write space left for putc()
@@ -20,7 +22,7 @@ void mik32_stdin_init(UART_TypeDef *host)
     stdin->_bf._size = __buffer_size;   //< the buffer (at least 1 byte, if !NULL)
     stdin->_lbfsize = -__buffer_size;   //< 0 or -_bf._size, for inline putc
     stdin->_cookie = NULL;              //< cookie passed to io functions
-    stdin->_read = (uint8_t*)mik32_stdin_read;
+    stdin->_read = mik32_stdin_read;
     stdin->_write = NULL;
     stdin->_seek = NULL;
     stdin->_close = NULL;
@@ -33,7 +35,7 @@ void mik32_stdin_init(UART_TypeDef *host)
 
     usart_transaction_cfg_t cfg = {
         .host = host,
-        .dma_channel = 3,//DMA_CH_AUTO,
+        .dma_channel = DMA_CH_AUTO,
         .dma_priority = 0,
         .direction = USART_TRANSACTION_RECEIVE
     };
@@ -96,6 +98,7 @@ int mik32_stdin_read(void *__reent, void *dummy, char *dst, int len)
     }
     else //< non-blocking receive
     {
+        xprintf("#%u#", usart_transaction_ready(&__trans));
         if (__cnt >= __buffer_size) __cnt = 0;
         bool trans_ready = usart_transaction_ready(&__trans);
         if (trans_ready)

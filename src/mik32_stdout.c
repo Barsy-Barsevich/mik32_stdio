@@ -8,6 +8,8 @@ static bool mik32_stdout_blocking_transmit = true;
 
 void mik32_stdout_init(UART_TypeDef *host)
 {
+    if (host != UART_0 && host != UART_1) return;
+    
     stdout->_p = mik32_stdout_buffer;       //< current position in (some) buffer
     stdout->_r = 0;                         //< read space left for getc()
     stdout->_w = PRINTF_BUFFER_SIZE;        //< write space left for putc()
@@ -120,17 +122,5 @@ int mik32_stdout_write(void *__reent, void *, const char *src, int len)
 
 void mik32_stdout_putc(char symbol)
 {
-    // if (!mik32_stdout_blocking_transmit)
-    // {
-    //     usart_transaction_wait(
-    //         &mik32_stdout_trans,
-    //         DMA_NO_TIMEOUT
-    //     );
-    // }
-    // mik32_stdout_buffer[mik32_stdout_cnt++] = symbol;
-    // if (symbol == PRINTF_FLUSHING_SYMBOL || mik32_stdout_cnt >= PRINTF_BUFFER_SIZE || mik32_stdout_blocking_transmit)
-    // {
-    //     mik32_stdout_flush();
-    // }
     mik32_stdout_write(NULL, NULL, &symbol, 1);
 }
