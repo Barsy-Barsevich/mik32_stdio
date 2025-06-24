@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
+#include <stdlib.h>
 #include "usart_transaction.h"
 
 // #define MIK32STDIN_USE_MALLOC
