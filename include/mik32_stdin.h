@@ -5,12 +5,14 @@
 #include <string.h>
 #include <stdlib.h>
 #include "usart_transaction.h"
+#include "pad_config.h"
 
 // #define MIK32STDIN_USE_MALLOC
 
 #define MIK32STDIN_BUFSIZE_DEFAULT      5
 
-void mik32_stdin_init(UART_TypeDef *host);
+bool mik32_stdin_uart_init(UART_TypeDef *host, uint32_t baudrate);
+void mik32_stdin_init(UART_TypeDef *host, uint32_t baudrate);
 void mik32_stdin_enable_blocking(void);
 void mik32_stdin_disable_blocking(void);
 uint32_t mik32_stdin_get_buffer_size(void);

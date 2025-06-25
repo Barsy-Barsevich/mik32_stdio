@@ -11,9 +11,47 @@ static usart_transaction_t __trans;
 static bool __blocking_receive = true;
 static uint32_t __buffer_size = MIK32STDIN_BUFSIZE_DEFAULT;
 
-void mik32_stdin_init(UART_TypeDef *host)
+bool mik32_stdin_uart_init(UART_TypeDef *host, uint32_t baudrate)
+{
+    switch ((uint32_t)host)
+    {
+        case (uint32_t)UART_0:
+            __HAL_PCC_UART_0_CLK_ENABLE();
+            uint8_t uart0_rxd_pin = 5;
+            PAD_CONFIG->PORT_0_CFG &= ~(0b11 << (2 * uart0_rxd_pin));
+            PAD_CONFIG->PORT_0_CFG |= (0b01 << (2 * uart0_rxd_pin));
+            break;
+        case (uint32_t)UART_1:
+            __HAL_PCC_UART_1_CLK_ENABLE();
+            uint8_t uart1_rxd_pin = 8;
+            PAD_CONFIG->PORT_1_CFG &= ~(0b11 << (2 * uart1_rxd_pin));
+            PAD_CONFIG->PORT_1_CFG |= (0b01 << (2 * uart1_rxd_pin));
+            break;
+        default: return false;
+    }
+    /* UART init */
+    host->CONTROL3 |= UART_CONTROL3_DMAT_M | UART_CONTROL3_DMAR_M;
+    host->CONTROL1 |= UART_CONTROL1_UE_M | UART_CONTROL1_RE_M | UART_CONTROL1_M_8BIT_M;    /* Baudrate */
+    uint32_t apbp_clk = HAL_PCC_GetSysClockFreq() / ((PM->DIV_AHB+1)*(PM->DIV_APB_P+1));
+    uint32_t divider = apbp_clk / baudrate;
+    if (divider < 16) return false;
+    host->DIVIDER = divider;
+    
+    bool host_ready = false;
+    uint32_t timeout_us = 100000;
+    uint32_t init_start_time = HAL_Micros();
+    while (!host_ready && (HAL_Micros() - init_start_time < timeout_us))
+    {
+        host_ready = (host->FLAGS & UART_FLAGS_REACK_M) != 0;
+    }
+    if (HAL_Micros() - init_start_time < timeout_us) return true;
+    else return false;
+}
+
+void mik32_stdin_init(UART_TypeDef *host, uint32_t baudrate)
 {
     if (host != UART_0 && host != UART_1) return;
+    if (!mik32_stdin_uart_init(host, baudrate)) return;
     
     stdin->_p = (uint8_t*)__buffer;     //< current position in (some) buffer
     stdin->_r = 0;                      //< read space left for getc()

@@ -6,11 +6,49 @@ static uint32_t mik32_stdout_cnt;
 static usart_transaction_t mik32_stdout_trans;
 static bool mik32_stdout_blocking_transmit = true;
 
-void mik32_stdout_init(UART_TypeDef *host)
+bool mik32_stdout_uart_init(UART_TypeDef *host, uint32_t baudrate)
+{
+    switch ((uint32_t)host)
+    {
+        case (uint32_t)UART_0:
+            __HAL_PCC_UART_0_CLK_ENABLE();
+            uint8_t uart0_txd_pin = 6;
+            PAD_CONFIG->PORT_0_CFG &= ~(0b11 << (2 * uart0_txd_pin));
+            PAD_CONFIG->PORT_0_CFG |= (0b01 << (2 * uart0_txd_pin));
+            break;
+        case (uint32_t)UART_1:
+            __HAL_PCC_UART_1_CLK_ENABLE();
+            uint8_t uart1_txd_pin = 9;
+            PAD_CONFIG->PORT_1_CFG &= ~(0b11 << (2 * uart1_txd_pin));
+            PAD_CONFIG->PORT_1_CFG |= (0b01 << (2 * uart1_txd_pin));
+            break;
+        default: return false;
+    }
+    /* UART init */
+    host->CONTROL3 |= UART_CONTROL3_DMAT_M | UART_CONTROL3_DMAR_M;
+    host->CONTROL1 |= UART_CONTROL1_UE_M | UART_CONTROL1_TE_M | UART_CONTROL1_M_8BIT_M;    /* Baudrate */
+    uint32_t apbp_clk = HAL_PCC_GetSysClockFreq() / ((PM->DIV_AHB+1)*(PM->DIV_APB_P+1));
+    uint32_t divider = apbp_clk / baudrate;
+    if (divider < 16) return false;
+    host->DIVIDER = divider;
+    
+    bool host_ready = false;
+    uint32_t timeout_us = 100000;
+    uint32_t init_start_time = HAL_Micros();
+    while (!host_ready && (HAL_Micros() - init_start_time < timeout_us))
+    {
+        host_ready = (host->FLAGS & UART_FLAGS_TEACK_M) != 0;
+    }
+    if (HAL_Micros() - init_start_time < timeout_us) return true;
+    else return false;
+}
+
+void mik32_stdout_init(UART_TypeDef *host, uint32_t baudrate)
 {
     if (host != UART_0 && host != UART_1) return;
+    if (!mik32_stdout_uart_init(host, baudrate)) return;
     
-    stdout->_p = mik32_stdout_buffer;       //< current position in (some) buffer
+    stdout->_p = (uint8_t)mik32_stdout_buffer;       //< current position in (some) buffer
     stdout->_r = 0;                         //< read space left for getc()
     stdout->_w = PRINTF_BUFFER_SIZE;        //< write space left for putc()
     /* the buffer (at least 1 byte, if !NULL) */
