@@ -1,5 +1,9 @@
 #pragma once
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdio.h>
 #include "usart_transaction.h"
 #include "pad_config.h"
@@ -14,3 +18,7 @@ void mik32_stdout_disable_blocking(void);
 void mik32_stdout_flush(void);
 int mik32_stdout_write(void *__reent, void *dummy, const char *src, int len);
 void mik32_stdout_putc(char symbol);
+
+#ifdef __cplusplus
+}
+#endif
