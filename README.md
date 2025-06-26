@@ -1,6 +1,8 @@
 # mik32_stdio
 *Supporting standard I/O on the MIK32 platform*
 
+\[[RU](./RU_README.md)/EN]
+
 ---
 ## Dynamic buffer support
 If you want to use dynamic buffers for non-blocking receive and/or transmit, enter following equation to `platformio.ini` file in your project.
@@ -33,19 +35,19 @@ Standard input and output initializing. Is equivalent to call both of`mik32_stdo
 Standard output.
 #### Methods
 ##### [`mik32_stdio_status_t`](#mik32_stdio_status_t)` mik32_stdout_uart_init(UART_TypeDef *host, uint32_t baudrate`
-UART initializing for output, frame 8bit, no parity bit, 1-period size stop bit. Returns `false` if `host` is incorrect or baudrate is more than apbp_clk / 16.
+UART initializing for output, frame 8bit, no parity bit, 1-period size stop bit. Returns `MIK32STDIO_INCORRECT_ARGUMENT` if `host` is incorrect or `baudrate` is more than `apbp_clk` / 16.
 ##### [`mik32_stdio_status_t`](#mik32_stdio_status_t)` mik32_stdout_init(UART_TypeDef *host, uint32_t baudrate)`
-Standard output and UART initialization. `host` must be `UART_0` or `UART_1`. Returns `false` if `host` is incorrect or baudrate is more than apbp_clk / 16.
+Standard output and UART initialization. `host` must be `UART_0` or `UART_1`. Returns `MIK32STDIO_INCORRECT_ARGUMENT` if `host` is incorrect or `baudrate` is more than `apbp_clk` / 16.
 ##### `void mik32_stdout_enable_blocking(void)`
 Enable blocking transmission. Blocking transmission means the system will hold the processor while not all the bytes are sent.
 ##### `void mik32_stdout_disable_blocking(void)`
-Disable blocking transmission. Non-blocking mode means that the processor loads data to the buffer and when the buffer is overloaded or the '\n' symbol was sent or the special function was called processor starts the sending DMA-transaction. Then the processor is ready to work on other tasks while DMA sends the data. Non-blocking mode is enabled by default.
+Disable blocking transmission. Non-blocking mode means that the processor loads data to the buffer and when the buffer is overloaded or the `\n` symbol was sent or the special function was called processor starts the sending DMA-transaction. Then the processor is ready to work on other tasks while DMA sends the data. Non-blocking mode is enabled by default.
 ##### `uint32_t mik32_stdout_get_buffer_size(void)`
 Returns input buffer size.
 ##### [`mik32_stdio_status_t`](#mik32_stdio_status_t)` mik32_stdout_set_buffer_size(uint32_t size)`
-Sets input buffer (for non-blocking mode) size and allocates new buffer. Only effective if `MIK32STDOUT_USE_MALLOC` is defined. Returns `MIK32STDIO_OK`, `MIK32STDIO_DMA_ERROR`, `MIK32STDIO_MALLOC_FAIL` or `MIK32STDIO_INCORRECT_ARGUMENT`.
+Sets output buffer (for non-blocking mode) size and allocates new buffer. Only effective if `MIK32STDOUT_USE_MALLOC` is defined. Returns `MIK32STDIO_OK`, `MIK32STDIO_DMA_ERROR`, `MIK32STDIO_MALLOC_FAIL` or `MIK32STDIO_INCORRECT_ARGUMENT`.
 ##### [`mik32_stdio_status_t`](#mik32_stdio_status_t)` mik32_stdout_flush(void)`
-Send the buffer data immediately.
+Send the buffer data immediately. Only effective in non-blocking mode.
 ##### `int mik32_stdout_write(void *__reent, void *dummy, const char *src, int len)`
 Write some data to the standard output.
 ##### `void mik32_stdout_putc(char symbol)`
