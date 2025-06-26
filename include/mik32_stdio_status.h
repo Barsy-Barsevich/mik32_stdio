@@ -1,0 +1,10 @@
+#pragma once
+
+typedef enum
+{
+    MIK32STDIO_OK = 0,
+    MIK32STDIO_INCORRECT_ARGUMENT = 1,
+    MIK32STDIO_DMA_ERROR = 2,
+    MIK32STDIO_TIMEOUT_ERROR = 3,
+    MIK32STDIO_MALLOC_FAIL = 4,
+} mik32_stdio_status_t;

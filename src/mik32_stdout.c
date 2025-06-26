@@ -1,12 +1,18 @@
 #include "mik32_stdout.h"
 #include <sys/reent.h>
 
-static char mik32_stdout_buffer[PRINTF_BUFFER_SIZE];
-static uint32_t mik32_stdout_cnt;
-static usart_transaction_t mik32_stdout_trans;
-static bool mik32_stdout_blocking_transmit = true;
+#if defined(MIK32STDOUT_USE_MALLOC)
+static char *__buffer;
+#else
+static char __buffer[MIK32STDOUT_BUFSIZE_DEFAULT];
+#endif
 
-bool mik32_stdout_uart_init(UART_TypeDef *host, uint32_t baudrate)
+static uint32_t __buffer_size = MIK32STDOUT_BUFSIZE_DEFAULT;
+static uint32_t __cnt = 0;
+static usart_transaction_t __trans;
+static bool __blocking_transmit = true;
+
+mik32_stdio_status_t mik32_stdout_uart_init(UART_TypeDef *host, uint32_t baudrate)
 {
     switch ((uint32_t)host)
     {
@@ -22,14 +28,14 @@ bool mik32_stdout_uart_init(UART_TypeDef *host, uint32_t baudrate)
             PAD_CONFIG->PORT_1_CFG &= ~(0b11 << (2 * uart1_txd_pin));
             PAD_CONFIG->PORT_1_CFG |= (0b01 << (2 * uart1_txd_pin));
             break;
-        default: return false;
+        default: return MIK32STDIO_INCORRECT_ARGUMENT;
     }
     /* UART init */
     host->CONTROL3 |= UART_CONTROL3_DMAT_M | UART_CONTROL3_DMAR_M;
     host->CONTROL1 |= UART_CONTROL1_UE_M | UART_CONTROL1_TE_M | UART_CONTROL1_M_8BIT_M;    /* Baudrate */
     uint32_t apbp_clk = HAL_PCC_GetSysClockFreq() / ((PM->DIV_AHB+1)*(PM->DIV_APB_P+1));
     uint32_t divider = apbp_clk / baudrate;
-    if (divider < 16) return false;
+    if (divider < 16) return MIK32STDIO_INCORRECT_ARGUMENT;
     host->DIVIDER = divider;
     
     bool host_ready = false;
@@ -39,22 +45,28 @@ bool mik32_stdout_uart_init(UART_TypeDef *host, uint32_t baudrate)
     {
         host_ready = (host->FLAGS & UART_FLAGS_TEACK_M) != 0;
     }
-    if (HAL_Micros() - init_start_time < timeout_us) return true;
-    else return false;
+    if (HAL_Micros() - init_start_time < timeout_us) return MIK32STDIO_OK;
+    else return MIK32STDIO_TIMEOUT_ERROR;
 }
 
-void mik32_stdout_init(UART_TypeDef *host, uint32_t baudrate)
+mik32_stdio_status_t mik32_stdout_init(UART_TypeDef *host, uint32_t baudrate)
 {
-    if (host != UART_0 && host != UART_1) return;
-    if (!mik32_stdout_uart_init(host, baudrate)) return;
+    if (host != UART_0 && host != UART_1) return MIK32STDIO_INCORRECT_ARGUMENT;
+    mik32_stdio_status_t res = mik32_stdout_uart_init(host, baudrate);
+    if (res != MIK32STDIO_OK) return res;
+
+#if defined(MIK32STDOUT_USE_MALLOC)
+    __buffer = (char*)malloc(__buffer_size);
+    if (__buffer == NULL) return MIK32STDIO_MALLOC_FAIL;
+#endif
     
-    stdout->_p = (uint8_t)mik32_stdout_buffer;       //< current position in (some) buffer
+    stdout->_p = (unsigned char*)__buffer;       //< current position in (some) buffer
     stdout->_r = 0;                         //< read space left for getc()
-    stdout->_w = PRINTF_BUFFER_SIZE;        //< write space left for putc()
+    stdout->_w = __buffer_size;        //< write space left for putc()
     /* the buffer (at least 1 byte, if !NULL) */
-    stdout->_bf._base = (unsigned char*)mik32_stdout_buffer;
-    stdout->_bf._size = PRINTF_BUFFER_SIZE;
-    stdout->_lbfsize = -PRINTF_BUFFER_SIZE; //< 0 or -_bf._size, for inline putc
+    stdout->_bf._base = (unsigned char*)__buffer;
+    stdout->_bf._size = __buffer_size;
+    stdout->_lbfsize = -__buffer_size; //< 0 or -_bf._size, for inline putc
     stdout->_cookie = NULL;                 //< cookie passed to io functions
     stdout->_read = NULL;
     stdout->_write = mik32_stdout_write;
@@ -78,78 +90,103 @@ void mik32_stdout_init(UART_TypeDef *host, uint32_t baudrate)
     // stdout->_mbstate.__value = 0;
     stdout->_flags2 = 0;            //< for future use */
 
-
     usart_transaction_cfg_t cfg = {
         .host = host,
         .dma_channel = DMA_CH_AUTO,
         .dma_priority = 0,
         .direction = USART_TRANSACTION_TRANSMIT
     };
-    usart_transaction_init(&mik32_stdout_trans, &cfg);
+    dma_status_t dma_st = usart_transaction_init(&__trans, &cfg);
+    if (dma_st != DMA_STATUS_OK) return MIK32STDIO_DMA_ERROR;
+
+    return MIK32STDIO_OK;
 }
 
 void mik32_stdout_enable_blocking(void)
 {
-    mik32_stdout_blocking_transmit = true;
+    __blocking_transmit = true;
 }
 
 void mik32_stdout_disable_blocking(void)
 {
-    mik32_stdout_blocking_transmit = false;
+    __blocking_transmit = false;
+}
+
+uint32_t mik32_stdout_get_buffer_size(void)
+{
+    return __buffer_size;
+}
+
+mik32_stdio_status_t mik32_stdout_set_buffer_size(uint32_t size)
+{
+#if defined (MIK32STDOUT_USE_MALLOC)
+    if (size <= 1) MIK32STDIO_INCORRECT_ARGUMENT;
+    free(__buffer);
+    __buffer = (char*)malloc(__buffer_size);
+    if (__buffer == NULL) return MIK32STDIO_MALLOC_FAIL;
+    __buffer_size = size;
+    __cnt = 0;
+    stdin->_p = (unsigned char*)__buffer;
+    stdin->_bf._base = (unsigned char*)__buffer;
+    stdin->_w = __buffer_size;
+    stdin->_bf._size = __buffer_size;
+    stdin->_lbfsize = -__buffer_size;
+#endif
+    return MIK32STDIO_OK;
 }
 
 void __attribute__((weak)) mik32_stdout_flush(void)
 {
-    if (mik32_stdout_cnt == 0) return;
-    if (mik32_stdout_blocking_transmit)
+    if (__cnt == 0) return;
+    if (__blocking_transmit)
     {
         usart_transmit(
-            &mik32_stdout_trans,
-            mik32_stdout_buffer,
-            mik32_stdout_cnt,
+            &__trans,
+            __buffer,
+            __cnt,
             DMA_TIMEOUT_AUTO
         );
     }
     else
     {
         usart_transaction_wait(
-            &mik32_stdout_trans,
+            &__trans,
             DMA_NO_TIMEOUT
         );
         usart_transmit_start(
-            &mik32_stdout_trans,
-            mik32_stdout_buffer,
-            mik32_stdout_cnt
+            &__trans,
+            __buffer,
+            __cnt
         );
         // usart_transmit(
-        //     &mik32_stdout_trans,
-        //     mik32_stdout_buffer,
-        //     mik32_stdout_cnt,
+        //     &__trans,
+        //     __buffer,
+        //     __cnt,
         //     10000
         // );
     }
-    mik32_stdout_cnt = 0;
+    __cnt = 0;
 }
 
 int mik32_stdout_write(void *__reent, void *, const char *src, int len)
 {
     int cnt = 0;
-    if (!mik32_stdout_blocking_transmit)
+    if (!__blocking_transmit)
     {
         dma_status_t res = usart_transaction_wait(
-            &mik32_stdout_trans,
+            &__trans,
             DMA_NO_TIMEOUT
         );
         if (res == DMA_STATUS_OK)
         {
             cnt = len;
         }
-        else return usart_transaction_done_bytes(&mik32_stdout_trans);
+        else return usart_transaction_done_bytes(&__trans);
     }
     for (int i=0; i<len; i++)
     {
-        mik32_stdout_buffer[mik32_stdout_cnt++] = src[i];
-        if (src[i] == PRINTF_FLUSHING_SYMBOL || mik32_stdout_cnt >= PRINTF_BUFFER_SIZE || mik32_stdout_blocking_transmit)
+        __buffer[__cnt++] = src[i];
+        if (src[i] == MIK32STDOUT_FLUSHING_SYMBOL_DEFAULT || __cnt >= MIK32STDOUT_BUFSIZE_DEFAULT || __blocking_transmit)
         {
             mik32_stdout_flush();
         }

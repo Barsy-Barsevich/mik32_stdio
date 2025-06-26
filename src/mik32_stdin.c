@@ -11,7 +11,7 @@ static usart_transaction_t __trans;
 static bool __blocking_receive = true;
 static uint32_t __buffer_size = MIK32STDIN_BUFSIZE_DEFAULT;
 
-bool mik32_stdin_uart_init(UART_TypeDef *host, uint32_t baudrate)
+mik32_stdio_status_t mik32_stdin_uart_init(UART_TypeDef *host, uint32_t baudrate)
 {
     switch ((uint32_t)host)
     {
@@ -27,14 +27,14 @@ bool mik32_stdin_uart_init(UART_TypeDef *host, uint32_t baudrate)
             PAD_CONFIG->PORT_1_CFG &= ~(0b11 << (2 * uart1_rxd_pin));
             PAD_CONFIG->PORT_1_CFG |= (0b01 << (2 * uart1_rxd_pin));
             break;
-        default: return false;
+        default: return MIK32STDIO_INCORRECT_ARGUMENT;
     }
     /* UART init */
     host->CONTROL3 |= UART_CONTROL3_DMAT_M | UART_CONTROL3_DMAR_M;
     host->CONTROL1 |= UART_CONTROL1_UE_M | UART_CONTROL1_RE_M | UART_CONTROL1_M_8BIT_M;    /* Baudrate */
     uint32_t apbp_clk = HAL_PCC_GetSysClockFreq() / ((PM->DIV_AHB+1)*(PM->DIV_APB_P+1));
     uint32_t divider = apbp_clk / baudrate;
-    if (divider < 16) return false;
+    if (divider < 16) return MIK32STDIO_INCORRECT_ARGUMENT;
     host->DIVIDER = divider;
     
     bool host_ready = false;
@@ -44,18 +44,24 @@ bool mik32_stdin_uart_init(UART_TypeDef *host, uint32_t baudrate)
     {
         host_ready = (host->FLAGS & UART_FLAGS_REACK_M) != 0;
     }
-    if (HAL_Micros() - init_start_time < timeout_us) return true;
-    else return false;
+    if (HAL_Micros() - init_start_time < timeout_us) return MIK32STDIO_OK;
+    else return MIK32STDIO_TIMEOUT_ERROR;
 }
 
-void mik32_stdin_init(UART_TypeDef *host, uint32_t baudrate)
+mik32_stdio_status_t mik32_stdin_init(UART_TypeDef *host, uint32_t baudrate)
 {
-    if (host != UART_0 && host != UART_1) return;
-    if (!mik32_stdin_uart_init(host, baudrate)) return;
+    if (host != UART_0 && host != UART_1) return MIK32STDIO_INCORRECT_ARGUMENT;
+    mik32_stdio_status_t res = mik32_stdin_uart_init(host, baudrate);
+    if (res != MIK32STDIO_OK) return res;
+
+#if defined (MIK32STDIN_USE_MALLOC)
+    __buffer = malloc(__buffer_size);
+    if (__buffer == NULL) return MIK32STDIO_MALLOC_FAIL;
+#endif
     
-    stdin->_p = (uint8_t*)__buffer;     //< current position in (some) buffer
-    stdin->_r = 0;                      //< read space left for getc()
-    stdin->_w = __buffer_size;          //< write space left for putc()
+    stdin->_p = (unsigned char*)__buffer; //< current position in (some) buffer
+    stdin->_r = __buffer_size;          //< read space left for getc()
+    stdin->_w = 0;                      //< write space left for putc()
     stdin->_bf._base = (unsigned char*)__buffer;
     stdin->_bf._size = __buffer_size;   //< the buffer (at least 1 byte, if !NULL)
     stdin->_lbfsize = -__buffer_size;   //< 0 or -_bf._size, for inline putc
@@ -67,17 +73,16 @@ void mik32_stdin_init(UART_TypeDef *host, uint32_t baudrate)
     stdin->_blksize = 0;	        //< stat.st_blksize (may be != _bf._size)
     stdin->_flags2 = 0;            //< for future use */
 
-#if defined (MIK32STDIN_USE_MALLOC)
-    __buffer = malloc(__buffer_size);
-#endif
-
     usart_transaction_cfg_t cfg = {
         .host = host,
         .dma_channel = DMA_CH_AUTO,
         .dma_priority = 0,
         .direction = USART_TRANSACTION_RECEIVE
     };
-    usart_transaction_init(&__trans, &cfg);
+    dma_status_t dma_st = usart_transaction_init(&__trans, &cfg);
+    if (dma_st != DMA_STATUS_OK) return MIK32STDIO_DMA_ERROR;
+
+    return MIK32STDIO_OK;
 }
 
 void mik32_stdin_enable_blocking(void)
@@ -85,14 +90,16 @@ void mik32_stdin_enable_blocking(void)
     __blocking_receive = true;
 }
 
-void mik32_stdin_disable_blocking(void)
+mik32_stdio_status_t mik32_stdin_disable_blocking(void)
 {
     __blocking_receive = false;
-    usart_receive_start(
+    dma_status_t dma_st = usart_receive_start(
         &__trans,
         __buffer,
         __buffer_size
     );
+    if (dma_st != DMA_STATUS_OK) return MIK32STDIO_DMA_ERROR;
+    return MIK32STDIO_OK;
 }
 
 uint32_t mik32_stdin_get_buffer_size(void)
@@ -100,22 +107,30 @@ uint32_t mik32_stdin_get_buffer_size(void)
     return __buffer_size;
 }
 
-void mik32_stdin_set_buffer_size(uint32_t size)
+mik32_stdio_status_t mik32_stdin_set_buffer_size(uint32_t size)
 {
 #if defined (MIK32STDIN_USE_MALLOC)
-    if (size <= 1) return;
-    __buffer_size = size;
+    if (size <= 1) return MIK32STDIO_INCORRECT_ARGUMENT;
     free(__buffer);
-    __buffer = malloc(__buffer_size);
+    __buffer = malloc(size);
+    if (__buffer == NULL) return MIK32STDIO_MALLOC_FAIL;
+    __buffer_size = size;
     if (!__blocking_receive)
     {
-        usart_receive_start(
+        dma_status_t dma_st = usart_receive_start(
             &__trans,
             __buffer,
             __buffer_size
         );
+        if (dma_st != DMA_STATUS_OK) return MIK32STDIO_DMA_ERROR;
     }
+    stdin->_p = (unsigned char*)__buffer;
+    stdin->_bf._base = (unsigned char*)__buffer;
+    stdin->_r = __buffer_size;
+    stdin->_bf._size = __buffer_size;
+    stdin->_lbfsize = -__buffer_size;
 #endif
+    return MIK32STDIO_OK;
 }
 
 int mik32_stdin_read(void *__reent, void *dummy, char *dst, int len)
