@@ -19,6 +19,8 @@ void mik32_stdout_enable_blocking(void);
 void mik32_stdout_disable_blocking(void);
 uint32_t mik32_stdout_get_buffer_size(void);
 mik32_stdio_status_t mik32_stdout_set_buffer_size(uint32_t buffer_size);
+char mik32_stdout_get_flushing_symbol(void);
+void mik32_stdout_set_flushing_symbol(char sym);
 void mik32_stdout_flush(void);
 int mik32_stdout_write(void *__reent, void *dummy, const char *src, int len);
 void mik32_stdout_putc(char symbol);

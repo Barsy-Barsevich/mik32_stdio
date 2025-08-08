@@ -9,6 +9,7 @@ static char __buffer[MIK32STDOUT_BUFSIZE_DEFAULT];
 
 static uint32_t __buffer_size = MIK32STDOUT_BUFSIZE_DEFAULT;
 static uint32_t __cnt = 0;
+static char __flushing_symbol = MIK32STDOUT_FLUSHING_SYMBOL_DEFAULT;
 static usart_transaction_t __trans;
 static bool __blocking_transmit = true;
 
@@ -135,6 +136,16 @@ mik32_stdio_status_t mik32_stdout_set_buffer_size(uint32_t size)
     return MIK32STDIO_OK;
 }
 
+char mik32_stdout_get_flushing_symbol(void)
+{
+    return __flushing_symbol;
+}
+
+void mik32_stdout_set_flushing_symbol(char sym)
+{
+    __flushing_symbol = sym;
+}
+
 void __attribute__((weak)) mik32_stdout_flush(void)
 {
     if (__cnt == 0) return;
@@ -186,7 +197,7 @@ int mik32_stdout_write(void *__reent, void *, const char *src, int len)
     for (int i=0; i<len; i++)
     {
         __buffer[__cnt++] = src[i];
-        if (src[i] == MIK32STDOUT_FLUSHING_SYMBOL_DEFAULT || __cnt >= MIK32STDOUT_BUFSIZE_DEFAULT || __blocking_transmit)
+        if (src[i] == __flushing_symbol || __cnt >= __buffer_size || __blocking_transmit)
         {
             mik32_stdout_flush();
         }
