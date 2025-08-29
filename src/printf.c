@@ -1,6 +1,6 @@
 #include "printf.h"
 
-static int int_to_str(long long src, int radix, bool left_filling, char fill_value, int minimal_width, bool hex_upper)
+static int int_to_str(FILE *stream, long long src, int radix, bool left_filling, char fill_value, int minimal_width, bool hex_upper)
 {
     int fromint_cnt = 0;
     char buf[64];
@@ -19,27 +19,27 @@ static int int_to_str(long long src, int radix, bool left_filling, char fill_val
         if (minimal_width - fromint_cnt > 0)
         {
             for (int i=0; i<(minimal_width-fromint_cnt); ++i)
-                putchar(fill_value);
+                putc(fill_value, stream);
         }
     }
     for (int i=fromint_cnt-1; i>=0; i--)
     {
         char sym = buf[i] + '0';
         sym += sym > '9' ? hex_upper ? 0x7 : 0x27 : 0;
-        putchar(sym);
+        putc(sym, stream);
     }
     if (!left_filling)
     {
         if (minimal_width - fromint_cnt > 0)
         {
             for (int i=0; i<(minimal_width-fromint_cnt); ++i)
-                putchar(fill_value);
+                putc(fill_value, stream);
         }
     }
     return fromint_cnt < minimal_width ? minimal_width : fromint_cnt;
 }
 
-int _vprintf(const char *fmt, va_list arg)
+int _fvprintf(FILE *stream, const char *fmt, va_list arg)
 {
     char c;
     int symbols_counter = 0;
@@ -47,10 +47,10 @@ int _vprintf(const char *fmt, va_list arg)
     bool left;
     int minimal_width;
     int minimal_exp_width;
-    int radix;
-    bool hex_upper;
+    int radix = 10;
+    bool hex_upper = true;
     bool use_long = false;
-    unsigned long long read_value;
+    unsigned long long read_value = 0;
 
     while (1)
     {
@@ -69,7 +69,7 @@ int _vprintf(const char *fmt, va_list arg)
             c = *fmt++; //< get the next symbol
             if (c == '%')
             {
-                putchar(c);
+                putc(c, stream);
                 symbols_counter += 1;
                 continue;
             }
@@ -78,7 +78,7 @@ int _vprintf(const char *fmt, va_list arg)
                 char *string = va_arg(arg, char*);
                 while (*string != '\0')
                 {
-                    putchar(*string++);
+                    putc(*string++, stream);
                     symbols_counter += 1;
                 }
                 continue;
@@ -123,19 +123,19 @@ int _vprintf(const char *fmt, va_list arg)
                     if (minimal_width - (int)sizeof(char) > 0)
                     {
                         for (int i=0; i<(minimal_width-sizeof(char)); ++i)
-                            putchar(fill_value);
+                            putc(fill_value, stream);
                         symbols_counter += minimal_width;
                     }
                     else symbols_counter += sizeof(char);
-                    putchar((char)va_arg(arg, int));
+                    putc((char)va_arg(arg, int), stream);
                 }
                 else //< left = true
                 {
-                    putchar((char)va_arg(arg, int));
+                    putc((char)va_arg(arg, int), stream);
                     if (minimal_width - (int)sizeof(char) > 0)
                     {
                         for (int i=0; i<(minimal_width-sizeof(char)); ++i)
-                            putchar(fill_value);
+                            putc(fill_value, stream);
                         symbols_counter += minimal_width;
                     }
                     else symbols_counter += sizeof(char);
@@ -145,7 +145,7 @@ int _vprintf(const char *fmt, va_list arg)
             if (c == 'p')
             {
                 unsigned ptr = (unsigned)va_arg(arg, void*);
-                int fromint_cnt = int_to_str(ptr, 16, true, fill_value, 8, true);
+                int fromint_cnt = int_to_str(stream, ptr, 16, true, fill_value, 8, true);
                 symbols_counter += fromint_cnt;
                 continue;
             }
@@ -191,7 +191,7 @@ int _vprintf(const char *fmt, va_list arg)
                     symbols_counter += 1;
                     exp = -exp;
                 }
-                int fromint_cnt = int_to_str(exp, 10, true, fill_value, minimal_width, false);
+                int fromint_cnt = int_to_str(stream, exp, 10, true, fill_value, minimal_width, false);
                 symbols_counter += fromint_cnt;
                 continue;
             }
@@ -206,7 +206,7 @@ int _vprintf(const char *fmt, va_list arg)
                 }
                 int integer_value = (int)fval;
                 fval -= (float)integer_value;
-                int fromint_cnt = int_to_str(integer_value, 10, true, fill_value, minimal_width, false);
+                int fromint_cnt = int_to_str(stream, integer_value, 10, true, fill_value, minimal_width, false);
                 putchar('.');
                 symbols_counter += fromint_cnt + 1;
                 if (minimal_exp_width == 0) minimal_exp_width = 7;
@@ -289,7 +289,7 @@ int _vprintf(const char *fmt, va_list arg)
                 else
                     read_value = (unsigned)va_arg(arg, int);
             }
-            int fromint_cnt = int_to_str(read_value, radix, !left, fill_value, minimal_width, hex_upper);
+            int fromint_cnt = int_to_str(stream, read_value, radix, !left, fill_value, minimal_width, hex_upper);
             symbols_counter += fromint_cnt;
         }
         else
@@ -301,11 +301,25 @@ int _vprintf(const char *fmt, va_list arg)
     return symbols_counter;
 }
 
+int _vprintf(const char *fmt, va_list arg)
+{
+    return _fvprintf(stdout, fmt, arg);
+}
+
 int printf(const char *fmt, ...)
 {
     va_list arg;
     va_start(arg, fmt);
 	int res = _vprintf(fmt, arg);
+	va_end(arg);
+    return res;
+}
+
+int fprintf(FILE *stream, const char *fmt, ...)
+{
+    va_list arg;
+    va_start(arg, fmt);
+	int res = _fvprintf(stream, fmt, arg);
 	va_end(arg);
     return res;
 }
