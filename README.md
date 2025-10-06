@@ -1,75 +1,85 @@
 # mik32_stdio
-*Supporting standard I/O on the MIK32 platform*
+*Поддежка стандартного ввода-вывода для MIK32*
 
-\[[RU](./RU_README.md)/EN]
+\[RU/[EN](README_EN.md)]
 
 ---
-## Dynamic buffer support
-If you want to use dynamic buffers for non-blocking receive and/or transmit, enter following equation to `platformio.ini` file in your project.
+## Требуемые нестандартные модули
+`mik32_transaction` (https://github.com/Barsy-Barsevich/mik32_transaction)
+
+---
+## Философия
+Набор библиотек `mik32_stdio` был создан для упрощения ввода-вывода при использовании MIK32. Цель -- добавить поддержку методов стандартной библиотеки `stdio.h`. В настоящее время работают функции: `putc`, `putchar`, `puts`, `printf`, `sprintf`, `fprintf`, `getc`, `getchar` , `scanf`. Данные функции уже реализованы в стандартной библиотеке компилятора `riscv-none-elf-gcc`, но стандартные реализации не работают на MIK32, так как заточены под выполнение в составе ОС. Однако эти функции объявлены как "слабые" (`weak`), что дает возможность их переопределять, что и было сделано.
+
+Данная библиотека позволяет вести прием и передачу данных как через `UART_0`, так и через `UART_1`, используя вызовы стандартной Си-библиотеки `stdio.h`. Ввод и вывод может быть буферизирован; поддерживаются как статические, так и динамические буферы.
+
+---
+## Поддержка динамически лоцируемых буферов
+Если Вы хотите использовать динамически лоцируемые  буферы для неблокирующего приема и/или передачи, добавьте следующую строку в файл `platformio.ini` в Вашем проекте.
 ```
 build_flags = -DMIK32STDOUT_USE_MALLOC -DMIK32STDIN_USE_MALLOC
 ```
 
 ---
-## Headers
+## Заголовочные файлы
 
 ### ⚡️`mik32_stdio_status.h`
-Contains `mik32_stdio_status_t` type definition.
+Содержит объявление типа `mik32_stdio_status_t`.
 #### Enums
 ##### `mik32_stdio_status_t`
 - `MIK32STDIO_OK` (=0);
 - `MIK32STDIO_INCORRECT_ARGUMENT` (=1);
-- `MIK32STDIO_DMA_ERROR` (=2): dma transaction error;
+- `MIK32STDIO_DMA_ERROR` (=2): ошибка ПДП транзации;
 - `MIK32STDIO_TIMEOUT_ERROR` (=3);
 - `MIK32STDIO_MALLOC_FAIL` (=4).
 
 ---
 ### ⚡️`mik32_stdio.h`
-Common stdio header.
-#### Methods
+Общий заголовочный файл для стандартного ввода-вывода.
+#### Методы
 ##### [`mik32_stdio_status_t`](#mik32_stdio_status_t)` mik32_stdio_init(UART_TypeDef *host, uint32_t baudrate)`
-Standard input and output initializing. Is equivalent to call both of`mik32_stdout_init` and `mik32_stdin_init` subroutines.
+Инициализация стандартного ввода и вывода. Вызов функции эквивалентен последовательному вызову функций `mik32_stdout_init` и `mik32_stdin_init`.
 
 ---
 ### ⚡️`mik32_stdout.h`
-Standard output.
-#### Methods
+Заголовочный файл для обслуживающих функций стандартного вывода.
+#### Методы
 ##### [`mik32_stdio_status_t`](#mik32_stdio_status_t)` mik32_stdout_uart_init(UART_TypeDef *host, uint32_t baudrate`
-UART initializing for output, frame 8bit, no parity bit, 1-period size stop bit. Returns `MIK32STDIO_INCORRECT_ARGUMENT` if `host` is incorrect or `baudrate` is more than `apbp_clk` / 16.
+Удобная нициацизация модуля UART для вывода, ширина символа 8 бит, без бита четности, одинарная длина стоп-бита. Возращает `MIK32STDIO_INCORRECT_ARGUMENT`, если `host` не корректен илиесли значение `baudrate` больше, чем `apbp_clk` / 16.
 ##### [`mik32_stdio_status_t`](#mik32_stdio_status_t)` mik32_stdout_init(UART_TypeDef *host, uint32_t baudrate)`
-Standard output and UART initialization. `host` must be `UART_0` or `UART_1`. Returns `MIK32STDIO_INCORRECT_ARGUMENT` if `host` is incorrect or `baudrate` is more than `apbp_clk` / 16.
+Инициализация стандартного вывода и модуля UART для вывода. Значение `host` должно быть `UART_0` или `UART_1`. Возращает `MIK32STDIO_INCORRECT_ARGUMENT`, если `host` не корректен илиесли значение `baudrate` больше, чем `apbp_clk` / 16.
 ##### `void mik32_stdout_enable_blocking(void)`
-Enable blocking transmission. Blocking transmission means the system will hold the processor while not all the bytes are sent.
+Включить режим блокирующего вывода. В режиме блокирующего вывода процессор будет занят при передаче, пока последний байт не будет передан.
 ##### `void mik32_stdout_disable_blocking(void)`
-Disable blocking transmission. Non-blocking mode means that the processor loads data to the buffer and when the buffer is overloaded or the `\n` symbol was sent or the special function was called processor starts the sending DMA-transaction. Then the processor is ready to work on other tasks while DMA sends the data. Non-blocking mode is enabled by default.
+Включить режим неблокирующего вывода. В режиме неблокирующего вывода процессор загружает данные в буффер (по-умолчанию имеет объем 50), и когда буфер переполняется, или встручается символ `\n`, или была вызвана специальная функция (`mik32_stdout_flush`), процессор запускает DMA-транзакцию на отправку содержимого буфера. Сразу после этого управление возращается пользователю, и процессор не тратит времени, пока данные передаются.
 ##### `uint32_t mik32_stdout_get_buffer_size(void)`
-Returns input buffer size.
+Возращает размер буфера на вывод в байтах.
 ##### [`mik32_stdio_status_t`](#mik32_stdio_status_t)` mik32_stdout_set_buffer_size(uint32_t size)`
-Sets output buffer (for non-blocking mode) size and allocates new buffer. Only effective if `MIK32STDOUT_USE_MALLOC` is defined. Returns `MIK32STDIO_OK`, `MIK32STDIO_DMA_ERROR`, `MIK32STDIO_MALLOC_FAIL` or `MIK32STDIO_INCORRECT_ARGUMENT`.
+Устанавливает размер буфера на вывод (для неблокирующего вывода). Имеет смысл только в случае, если выражение `MIK32STDOUT_USE_MALLOC` объявлено. Возращает `MIK32STDIO_OK`, `MIK32STDIO_DMA_ERROR`, `MIK32STDIO_MALLOC_FAIL` или `MIK32STDIO_INCORRECT_ARGUMENT`.
 ##### [`mik32_stdio_status_t`](#mik32_stdio_status_t)` mik32_stdout_flush(void)`
-Send the buffer data immediately. Only effective in non-blocking mode.
+Отправляет данные буфера в порт немедленно. Имеет смысл в неблокирующем режиме.
 ##### `int mik32_stdout_write(void *__reent, void *dummy, const char *src, int len)`
-Write some data to the standard output.
+Записывает данные в стандартный вывод.
 ##### `void mik32_stdout_putc(char symbol)`
-Putc function equivalent, write 1 byte to the buffer.
+Аналог функции `putchar`. Отправляет 1 байт в стандартный вывод.
 
 ---
 ### ⚡️`mik32_stdin.h`
-Standard input.
+Заголовочный файл для обслуживающих функций стандартного ввода.
 #### Methods
 ##### [`mik32_stdio_status_t`](#mik32_stdio_status_t)` mik32_stdin_uart_init(UART_TypeDef *host, uint32_t baudrate`
-UART initializing for input, frame 8bit, no parity bit, 1-period size stop bit. Returns `false` if `host` is incorrect or baudrate is more than apbp_clk / 16.
-##### [`mik32_stdio_status_t`](#mik32_stdio_status_t)` mik32_stdin_init(UART_TypeDef *host)`
-Standard input initialization. `host` must be `UART0` or `UART1`. Returns `false` if `host` is incorrect or baudrate is more than apbp_clk / 16.
+Удобная инициализация UART для ввода, ширина символа 8 бит, без бита четности, одинарная длина стоп-бита. Функция возвращает `false`, если `host` некорректен или `baudrate` больше, чем `apbp_clk / 16`.
+##### [`mik32_stdio_status_t`](#mik32_stdio_status_t)` mik32_stdin_init(UART_TypeDef *host, uint32_t baudrate)`
+Инициализация стандартного ввода. `host` должен быть `UART0` or `UART1`. Функция возвращает `false`, если `host` некорректен или `baudrate` больше, чем `apbp_clk / 16`.
 ##### `void mik32_stdin_enable_blocking(void)`
-Enables blocking input mode. In this mode when any of input functions is called (for example, `getc`) the system waits for the bytes entered.
+Разрешает блокирующий режим ввода. В этом режиме, при вызове любой функции ввода, например, `getc`, процессор будет ждать каждого байта в цикле.
 ##### [`mik32_stdio_status_t`](#mik32_stdio_status_t)` mik32_stdin_disable_blocking(void)`
-Enables non-blocking input mode. In this mode entered data are permanently loaded into the buffer and when the user calls `getc` or other input function data are read from buffer, that increases UART receiving speed capability because the microcontroller can receive data while the processor works on other tasks. This method returns `MIK32STDIO_OK` or `MIK32STDIO_DMA_ERROR`.
+Разрешает неблокирующий режим ввода. В этом режиме поступившие в UART данные сразу загружаются в буфер посредством DMA, не тревожа процессор. Чтение буфера доступно через функции `getc` и пр. функции ввода. Данный подход позволяет ускорить прием данных, потому что процессор не вынужден специально ждать каждого байта. Функция возвращает `MIK32STDIO_OK` или `MIK32STDIO_DMA_ERROR`.
 ##### `uint32_t mik32_stdin_get_buffer_size(void)`
-Returns input buffer size.
+Возвращает текущий размер буфера для приема данных.
 ##### [`mik32_stdio_status_t`](#mik32_stdio_status_t)` mik32_stdin_set_buffer_size(uint32_t size)`
-Sets input buffer (for non-blocking mode) size and allocates new buffer. Only effective if `MIK32STDIN_USE_MALLOC` is defined. Returns `MIK32STDIO_OK`, `MIK32STDIO_DMA_ERROR`, `MIK32STDIO_MALLOC_FAIL` or `MIK32STDIO_INCORRECT_ARGUMENT`.
+Устанавливает размер буфера для приема (для неблокирующего режима) и аллоцирует новый буфер нового размера. Имеет смысл только если выражение `MIK32STDIN_USE_MALLOC` объявлено, иначе пустое действие. Возвращает `MIK32STDIO_OK`, `MIK32STDIO_DMA_ERROR`, `MIK32STDIO_MALLOC_FAIL` или `MIK32STDIO_INCORRECT_ARGUMENT`.
 ##### `int mik32_stdin_read(void *__reent, void *dummy, char *dst, int len)`
-Receive some data from standard input.
+Принять данные из стандартного ввода.
 ##### `char mik32_stdin_getc(void)`
-Getc function equivalent, receive 1 byte of data.
+Аналог функции `getchar`. Принимает 1 байт из стандартного ввода.
